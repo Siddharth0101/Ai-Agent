@@ -1,139 +1,122 @@
 # Delivery roadmap
 
-Status: planning complete enough to begin implementation; the repository still contains only the Bun + TypeScript starter. No assistant milestone below is implemented or released. **The next work item is M1-A: scaffold the working apps.**
+**Status:** Bun + TypeScript starter only; every milestone is **Not started**. **Next: M1-A, scaffold the working apps.** M1 and M2 are integration milestones; **M3 completes the core voice MVP**.
 
-This document owns implementation order, milestone progress, and release gates. [The feature scope](./feature-ideas.md) owns the approved Phase 1–5 features and their acceptance expectations. [The architecture](./architecture.md), [browser audio design](./browser-audio.md), and [commerce design](./voice-commerce.md) define how they work. Keep those documents aligned when a milestone changes.
-
-[Runtime and scaling design](./scaling.md) adds proposed PostgreSQL accounting/feature storage, separate temporary Redis before voice replicas, private object storage, and independent worker pools at the milestones that need them. These design defaults do not change implementation status or require all infrastructure in M1.
+This document owns delivery order and completion gates. Technical details live in the [architecture](./architecture.md), [browser audio](./browser-audio.md), [runtime/recovery](./scaling.md), [commerce](./voice-commerce.md), and [agent learning](./agent-learning.md) documents. [Approved feature scope](./feature-ideas.md) owns Phase 1–5 acceptance expectations.
 
 ## Release sequence
 
-Each milestone should produce a usable demonstration before the next feature group begins. The early text and manual-voice milestones are integration releases; **M3 is the complete core voice MVP**. Milestone numbers are delivery order, not package versions or promised dates.
-
-| Milestone | Scope mapping | Usable result | Status |
+| Order | Scope | Usable result | Status |
 | --- | --- | --- | --- |
-| M1: Foundation and text agent | Core foundation | Type a question, receive an answer, and see calculator/time tool activity | Not started; M1-A is next |
-| M2: Manual voice | Core integration baseline | Record a question manually, see its transcript, and hear/read the answer | Not started |
-| M3: Hands-free voice MVP | Complete core | Speak, pause for about 3 seconds, receive a reply, and interrupt by speaking again; Urdu and contextual delivery work | Not started |
-| M4: Everyday controls and budgets | Phase 1 | Correct transcripts, adjust answers/playback, manage pronunciation, and see/enforce usage limits | Not started |
-| M5: Familiar voices and selected memory | Phase 2 | Use an authorized AI voice profile and privately save chosen memories/original messages | Not started |
-| M6: Documents, practice, and routines | Phase 3 | Ask source-backed document questions, practise a topic, and run editable saved prompts | Not started |
-| M7: Reminders and action approval | Phase 4, foundations | Manage reminders/agenda and review exact external actions before authorized execution | Not started |
-| M8: Voice shopping and tickets | Phase 4, commerce | Review a cart/itinerary, use a supported checkout path, and see truthful order/booking status | Not started |
-| M9: Explanatory videos | Phase 5 | Request a verified narrated walkthrough with captions and visual steps | Not started |
-
-Already completed planning work:
-
-- [x] Document product scope, architecture, browser audio boundaries, and development conventions.
-- [x] Select ElevenLabs as the initial STT/TTS provider, with LangChain retained as the text agent.
-- [x] Record the approved extension phases and shopping/booking design.
+| M1 | Foundation and text agent | Typed questions, session context, calculator/time tools | Not started; M1-A next |
+| M2 | Manual voice baseline | Record, transcribe, read/hear an answer | Not started |
+| M3 | Complete core voice MVP | Hands-free listening, interruption, Urdu, contextual delivery | Not started |
+| M4 | Phase 1: everyday controls and budgets | Correction, answer/playback preferences, usage limits | Not started |
+| M5 | Phase 2: familiar voices and selected memory | Authorized profiles, original messages, explicitly saved memories | Not started |
+| M6 | Phase 3: documents, practice, routines | Cited document answers, practice modes, editable saved prompts | Not started |
+| M7 | Phase 4 foundations: reminders and approval | Durable reminders, exact external-action review | Not started |
+| M8 | Phase 4 commerce: shopping and ticket booking | Supported handoff, then verified provider execution | Not started |
+| M9 | Phase 5: explanatory videos | Source-checked narrated walkthroughs | Not started |
+| M10 | Bounded multi-agent learning | Evaluated read-only collaboration; optional verified MCP | Not started |
 
 ## M1: Foundation and text agent
 
-Work in three reviewable batches:
+- [ ] **M1-A — Working scaffold:** Bun workspaces for `apps/web`, `apps/server`, and `packages/shared`; compatible React/TypeScript/Vite/API dependencies; strict typing; atomic UI, thin handlers, shared validated contracts; runnable development, typecheck, build, and relevant test scripts.
+- [ ] **M1-B — Text conversation:** select model/provider and verify current official integration docs; add LangChain `createAgent`, server-only credentials, authenticated HTTP/SSE sessions, isolated bounded history, final-answer commit, and allowlisted public progress. Document setup, placeholder environment variables, and provider retention; WebSocket arrives in M3.
+- [ ] **M1-C — Tools and turn reliability:** validated calculator/current-time tools, one active turn, cancellation/reset, deadlines/admission limits, deduplicated submission/control commands, bounded retry records, read-only reconnection, temporary history, and sanitized logs.
 
-- [ ] **M1-A — Working scaffold:** create Bun workspaces for `apps/web`, `apps/server`, and `packages/shared`; select the API framework and compatible dependency versions; configure React + TypeScript and the proposed Vite tooling; preserve strict typing; add runnable development, typecheck, build, and relevant test scripts. Establish atomic UI components and feature hooks as needed for a working conversation screen, plus thin API handlers and shared validated contracts.
-- [ ] **M1-B — Text conversation:** choose the agent model provider; check the selected dependencies' official documentation; implement LangChain `createAgent`, server-owned credentials, authenticated HTTP/SSE/WebSocket session contracts, isolated bounded history, final-answer commit, and public progress events. Implement the baseline HTTP/SSE transport now and its streaming WebSocket extension in M3. Document actual setup commands, provider retention, and placeholder-only environment variables.
-- [ ] **M1-C — Tools and turn reliability:** register validated calculator/current-time tools; implement one active turn per session, cancellation/reset, deadlines, overload limits, duplicate-submission handling, and read-only event reconnection. Keep history temporary and operational logs sanitized.
-
-**Demo:** type a calculation, see the real tool activity and answer, ask a follow-up, then cancel an unfinished turn.
-
-**Exit gate:** strict TypeScript and affected builds pass; focused checks cover arithmetic overflow/invalid inputs, session isolation, stale history/event rejection, duplicate admission and expired-retry rejection, delayed/duplicate cancellation against a newer turn, expired-replay status recovery without another agent run, and controlled model/tool failures. No provider secrets enter the browser bundle. Commands in the README run as documented.
+**Demo/gate:** calculation, contextual follow-up, and cancellation work. Strict TypeScript/builds and documented commands pass. Check invalid/overflow arithmetic, session isolation, stale history/events, duplicate and expired retries, delayed cancellation of an older turn, expired-replay status recovery without another run, controlled provider/tool failures, and absence of browser secrets.
 
 ## M2: Manual voice baseline
 
-- [ ] Select ElevenLabs transcription/synthesis models, their supported API endpoints, and an initial voice; verify audio formats, Bun/SDK compatibility, account access, provider retention and Urdu recognition/output support separately. Keep STT and TTS behind backend adapters; temporary app history does not imply provider zero retention.
-- [ ] Add native MediaRecorder capture, manual finish/cancel controls, transcription, final text publication before synthesis, and audio playback. Keep text input usable without microphone permission.
-- [ ] Add visible recording/processing/playback states, immediate playback stop, provider cancellation where supported, late-result rejection, and cleanup of tracks/audio resources.
-- [ ] Preserve finalized text on synthesis/playback failure; speech retry uses committed text without rerunning the agent or tools.
+- [ ] Select ElevenLabs STT/TTS models, supported endpoints/formats, and voice; verify Bun/SDK/account compatibility, provider retention, and Urdu recognition/synthesis separately. Keep replaceable backend adapters.
+- [ ] Add native MediaRecorder, manual finish/cancel, transcription, final text before synthesis, playback/stop, visible states, late-result rejection, and resource cleanup. Preserve typed input and committed text; speech retry never reruns the agent/tools.
 
-**Demo:** manually record a question, read its transcript/answer, hear the reply, and stop playback while preserving the answer.
-
-**Exit gate:** the complete flow passes with mocked providers, including denied permission, empty recording, failed transcription/synthesis, and late cancelled work. With configured providers, verify real microphone/playback and representative Urdu recordings. A mock-only demonstration is not verified live voice support. This milestone remains the manual fallback, not the completed core MVP.
+**Demo/gate:** record, read/hear the answer, and stop playback without losing text. Mock permission denial, empty audio, STT/TTS failure, and late cancellation; then verify real microphone/playback and representative Urdu with configured providers. Mock success alone is not live voice support; this remains the manual fallback.
 
 ## M3: Hands-free voice MVP
 
-- [ ] Keep listening during an enabled voice session. Finalize only nonempty speech after about 3 seconds of continuous detected silence; resumed speech resets the timer; await final STT and invoke the agent once.
-- [ ] Confirmed new speech immediately silences playback and cancels older unfinished work. Atomically replace the backend turn, bound pending capture, preserve the start of the new utterance, and retain committed answers.
-- [ ] Add the streaming target: STT during recording and TTS after final-answer commit, using supported endpoints. Follow the AudioWorklet/Dedicated Worker boundaries, pooled typed transfers, generation checks, bounded buffers, and cleanup in the browser audio design; retain the native fallback.
-- [ ] Detect language per finalized utterance and reply in that language unless explicitly overridden. Verify Urdu, language changes, mixed-language input, and uncertain/unsupported-language recovery. Publish the verified model/language combinations rather than promising every world language.
-- [ ] Add bounded contextual delivery presets and manual overrides; keep language, voice identity, and delivery metadata separate from answer text. Unsupported delivery falls back to neutral in the same language when supported.
+- [ ] Finalize nonempty speech after about 3 seconds of continuous silence; resumed speech resets timing. Await final STT and invoke the agent once while listening remains enabled.
+- [ ] New confirmed speech immediately silences playback and atomically replaces unfinished server work; bound pending capture, preserve the utterance beginning and committed answers.
+- [ ] Stream STT during recording and TTS after final commit using verified endpoints and the [audio boundaries](./browser-audio.md); retain native fallback, pooled buffers, generation checks, and bounded queues.
+- [ ] Detect language per utterance, honor overrides, verify Urdu/mixed-language/recovery, and publish tested coverage. Add bounded delivery presets/manual overrides with separate language/voice metadata and neutral fallback.
 
-**Demo:** speak a question, pause, hear a reply, then interrupt it with another question. Repeat in Urdu and with a language change; request a story and override its delivery style.
-
-**Exit gate:** all [core MVP criteria](./architecture.md#mvp-completion-criteria) pass. Verify silence-boundary races, no empty/duplicate turns, background noise, speaker echo, interruption during processing/playback, stale audio rejection, and session disposal. Profile native versus streaming paths on representative devices for long tasks, frame delivery, underruns, bounded memory/buffers, stop responsiveness, and provider latency. Record measured stage latency before choosing targets.
+**Demo/gate:** speak, pause, hear, interrupt, change language, and override delivery. Pass [MVP criteria](./architecture.md#mvp-completion-criteria), silence races, no empty/duplicate turns, echo/noise rejection, interruption, stale audio, and disposal. Profile native/streaming paths on representative devices for frame delivery, underruns, memory, stop response, and stage/provider latency before setting targets.
 
 ## M4: Everyday controls and budgets — Phase 1
 
-- [ ] Add short/detailed answers, supported pacing, replay, and transcript correction as a fresh linked turn.
-- [ ] Add supported pronunciation preferences with preview/removal and usable fallback.
-- [ ] Add estimated usage, configurable budgets, warnings, atomic server-side reservations, and text fallback within the remaining model allowance. Distinguish estimates from confirmed provider usage/charges. Before offering account-wide/persistent budgets, introduce stable ownership and the minimal durable PostgreSQL reservation/usage ledger; restart must not reset potentially billable spend. Label any earlier session-only meter accurately.
+- [ ] Add answer length, supported pacing/replay, fresh linked transcript corrections, and pronunciation preferences with preview/removal/fallback.
+- [ ] Add estimated usage, warnings, atomic paid-stage reservations, budgets, and text fallback within remaining model allowance. Stable ownership and a durable PostgreSQL usage/reservation ledger precede persistent/account-wide budgets; cancellation/restart cannot erase potential charges. Save preferences only by choice.
 
-**Demo:** correct a transcript, replay a committed answer without another tool call, and reach a configured speech limit while text remains available within its model budget.
-
-**Exit gate:** the [Phase 1 acceptance expectations](./feature-ideas.md#phase-1-core-usability) pass, including correction provenance, replay of an older retained answer under a fresh playback attempt without agent/tool reruns, model-capability checks, concurrent budget enforcement, cancellation costs and reservation recovery after restart. Persist preferences only when chosen. Basic request/concurrency limits already belong in M1; this phase adds the user-facing budget feature.
+**Demo/gate:** [Phase 1 checks](./feature-ideas.md#phase-1-core-usability) pass: correct input, replay an older committed answer under a fresh playback attempt without agent/tool reruns, validate model controls, enforce concurrent limits, distinguish estimates from charges, and recover reservations after restart. M1 admission limits remain separate from this feature.
 
 ## M5: Familiar voices and selected memory — Phase 2
 
-- [ ] Establish or reuse stable authenticated ownership and the proposed PostgreSQL feature store/private object storage, with explicit retention/removal policies. Extend the minimal M4 accounting store when present; keep all retained data separate from temporary conversation/event state.
-- [ ] Add deliberate authorized voice enrollment/import, private preview/selection, separate persona settings, a clear AI label, and profile revocation/removal with accurate provider-cleanup status.
-- [ ] Add the original-message library and explicit selected memories with provenance, edit/delete/expiry controls, and grounded retrieval. Uploading an original recording does not itself authorize cloning.
+- [ ] Reuse/establish stable authenticated ownership, durable PostgreSQL feature records, private object storage, and explicit retention/removal; keep retained items separate from temporary sessions.
+- [ ] Add authorized enrollment/import, private voice preview/selection, separate persona settings, an AI label, revocation/removal, original-message library, and explicitly saved sourced memories with edit/delete/expiry. Uploading audio does not authorize cloning.
 
-**Demo:** choose an authorized profile, explicitly save a sourced memory, ask about it, then remove it and revoke the profile.
-
-**Exit gate:** the [Phase 2 acceptance expectations](./feature-ideas.md#phase-2-personal-companion-and-memory) pass: ownership isolation, current provider enrollment/sharing eligibility, grounded memories, revocation during synthesis, private access, and local/provider deletion failures. Do not promise enrollment paths that have not been verified.
+**Demo/gate:** save/retrieve/remove a sourced memory and revoke a profile. Pass [Phase 2 checks](./feature-ideas.md#phase-2-personal-companion-and-memory): verified provider eligibility/sharing, owner isolation, grounded recall, revocation during synthesis, private access, and accurate local/provider cleanup failures.
 
 ## M6: Documents, practice, and routines — Phase 3
 
-- [ ] Add private PDF/note upload, bounded parsing/indexing, owner-filtered retrieval, source citations, and deletion of originals plus derived data.
-- [ ] Add visible tutor/language/interview practice modes with topic/difficulty controls and an ordinary-mode exit.
-- [ ] Add create/preview/edit/run/delete controls for one-tap routines; each run uses the existing turn and permission rules.
+- [ ] Add private PDF/note upload, bounded parsing/indexing, owner-filtered retrieval/citations, and original/derived deletion; visible tutor/language/interview modes with topic/difficulty and exit; editable previewable one-tap routines using existing turn/permission rules.
 
-**Demo:** ask a cited question about an uploaded document, run a practice session, and launch an edited saved routine.
-
-**Exit gate:** the [Phase 3 acceptance expectations](./feature-ideas.md#phase-3-retrieval-practice-and-routines) pass, including unreadable/missing evidence, cross-owner isolation, source deletion during retrieval/indexing, malicious instructions in supplied content, mode exit, and one run per admitted routine turn. Saved prompts do not authorize future external actions.
+**Demo/gate:** cited document answer, practice session, and edited routine pass [Phase 3 checks](./feature-ideas.md#phase-3-retrieval-practice-and-routines), including missing evidence, cross-owner isolation, deletion during work, hostile source instructions, mode exit, and one admitted run. Saved prompts cannot authorize external actions.
 
 ## M7: Reminders and action approval — Phase 4 foundations
 
-Deliver scheduling and action infrastructure as separate batches:
+- [ ] **Scheduling:** timers/reminders, agenda, review/snooze/cancel, IANA timezones, recurrence/expiry, and verified notification delivery. Durable reminders survive reset/app closure; label open-app-only delivery accurately.
+- [ ] **Actions:** exact versioned owner/payload/scope review cards, server approval, atomic consumption, idempotency, and uncertain-outcome reconciliation; validate a controlled mock before a supported live adapter.
 
-- [ ] **Scheduling:** add timers/reminders, agenda, review/snooze/cancel, IANA timezones, recurrence/expiry, and a verified notification channel. Durable reminders survive conversation reset and app closure; accurately label delivery that requires the app to remain open.
-- [ ] **Actions:** build exact versioned review cards and server-enforced owner/payload/scope approval, atomic approval consumption, idempotency, and uncertain-outcome reconciliation. Validate with a controlled mock integration before enabling a concrete supported adapter.
-
-Use durable schedule/occurrence and operation/job/outbox records, bounded claims, and independent notification/reconciliation entry points as defined in the runtime design. Duplicate delivery and expired worker leases must not duplicate a reminder or blindly repeat a submitted purchase.
-
-**Demo:** schedule and snooze a reminder, verify its stated delivery mode, then edit and approve a mock action; the old approval must fail and repeated confirmation must not repeat execution.
-
-**Exit gate:** the [Phase 4 expectations](./feature-ideas.md#phase-4-reminders-and-external-actions) pass for scheduling and approval: restart/overdue handling, timezone boundaries, revoked/denied notifications, deduplicated delivery, edited/expired approval, unknown results, and externally confirmed outcomes after voice interruption. Mock action validation is not a claim of a working live connector.
+**Demo/gate:** schedule/snooze a reminder, edit/approve a mock action, reject old approval and duplicates. Pass [Phase 4 checks](./feature-ideas.md#phase-4-reminders-and-external-actions): restart/timezone/notification failures, duplicate occurrences, expired claims/approvals, unknown outcomes, and preserved effects after interruption. Use [durable schedule/operation/outbox records and bounded workers](./scaling.md); mock validation is not a live connector.
 
 ## M8: Voice shopping and tickets — Phase 4 commerce
 
-Keep grocery/shopping and ticket booking as separately tracked capabilities, even when they share action infrastructure.
+- [ ] **M8-A — Drafts and supported handoff:** resolve item/travel details; verify discovery/quote/handoff support; show reviewable cart/itinerary, freshness, totals/terms, and unsupported steps. Flipkart, Blinkit, Zepto, and IRCTC/authorized partners remain targets until verified.
+- [ ] **M8-B — First direct integration:** implement one verified authorized buyer/booking adapter; recheck quotes and exact approval, use secure provider checkout, retain minimal owned operation/receipt status independent of voice generations.
+- [ ] **M8-C — Additional capabilities/providers:** add shopping and ticketing separately, one adapter at a time; verify search/quote/cart/hold/checkout/tracking/cancel/refund individually, with fresh authorization for each mutation.
 
-- [ ] **M8-A — Drafts and supported handoff:** resolve item/travel ambiguities and prepare reviewable carts/itineraries. Verify the intended provider's discovery/quote/handoff capabilities, show freshness/terms/known totals and unsupported steps, and provide a labelled supported checkout path. Before secure provider login/payment input, pause capture/transcription forwarding and playback, invalidate pending input/silence timing, and resume listening only through a valid user action. Flipkart, Blinkit, Zepto, and IRCTC/authorized partners remain targets, not verified integrations.
-- [ ] **M8-B — First direct integration:** when authorized buyer/booking access is verified, implement one supported adapter end to end. Recheck quotes, enforce exact current approval, use secure provider account/payment input, pause capture/transcription/playback during secure input, and retain minimal owned operation/receipt status independently of voice generations.
-- [ ] **M8-C — Additional capabilities/providers:** add shopping and ticketing adapters one at a time. Verify search, quote, cart/hold, checkout, tracking, cancellation, and refund separately; each external mutation has its own required approval. Keep unsupported direct operations visibly planned or offered through a supported handoff.
-
-**Demo:** describe an order or trip, resolve missing details, review the proposal, and complete a supported handoff or verified integration. Show handoff status honestly; claim confirmed purchase/booking only from verified evidence, with seat/payment/refund states separate.
-
-**Exit gate:** relevant [commerce acceptance checks](./voice-commerce.md) pass: changing price/stock/seats, substitutions, ambiguous dates, edited/expired approval, duplicate callbacks, revoked access, secure input, uncertain outcomes, and interruption. Validate with mocks before an explicitly authorized live transaction. A successful handoff completes M8-A only; direct checkout and other providers remain open until separately verified. An unavailable provider can be marked blocked with its required access, while the supported slice proceeds to M9.
+**Demo/gate:** review and complete a supported handoff or verified integration. Follow [commerce checks](./voice-commerce.md): pause capture/transcription/playback during secure input, invalidate pending input/timing, resume only by valid user action; test ambiguity, stock/price/seat changes, substitutions, expired/edited approvals, callbacks, revoked access, uncertain results, and interruption. Mock before authorized live use. Handoff verifies M8-A only; claim purchase/booking from receipts and keep seat/payment/refund states separate. Record unavailable access without blocking the supported slice from M9.
 
 ## M9: Explanatory videos — Phase 5
 
-- [ ] Add source-checked scripts and genuine sanitized tutorial assets based on a finalized answer.
-- [ ] Add ElevenLabs narration, readable captions/highlights, and a renderer after verifying its runtime/deployment fit; Remotion remains the initial candidate.
-- [ ] Add separate bounded background jobs with progress/cancellation, source-answer binding, private expiring input/output, and user-initiated playback. Isolate rendering/narration capacity from interactive voice; keep durable queue metadata free of full narration/transcripts. Durable saving remains an explicit choice.
+- [ ] Add source-checked scripts and genuine sanitized tutorial assets, ElevenLabs narration, captions/highlights, and a verified renderer/runtime (Remotion is a candidate).
+- [ ] Use separately bounded background jobs, source-answer binding, progress/cancel, private expiring assets, and user-started playback; isolate interactive capacity and exclude full narration/transcripts from durable queue metadata. Durable saving is opt-in.
 
-**Demo:** ask for a how-to explanation, receive text/speech promptly, then open the completed narrated walkthrough.
+**Demo/gate:** prompt text/speech followed by an opened walkthrough passes [Phase 5 checks](./feature-ideas.md#phase-5-explanatory-videos): source accuracy, readable synchronized captions, Urdu RTL, provider retention, failure/cancellation/stale completion, and expiry. Failure preserves the answer; completion never autoplays or replaces newer work.
 
-**Exit gate:** the [Phase 5 expectations](./feature-ideas.md#phase-5-explanatory-videos) pass: current source accuracy, genuine visual steps, caption readability and synchronization, Urdu right-to-left rendering, provider retention, failed jobs, stale completion, cancellation, and private expiry. Video failures preserve the original answer and completion never autoplays or replaces a newer answer.
+## M10: Bounded multi-agent learning
+
+**Not started; after M1–M9.** Follow [learning layers](./agent-learning.md#learning-layers) and [detailed batches](./agent-learning.md#m10-delivery-batches). Retain LangChain TypeScript and the direct path; add orchestration dependencies only for demonstrated need after checking official docs.
+
+### M10-A — Routing, contracts, and baseline
+
+- [ ] Allowlisted routes keep simple questions direct. Runtime-validated specialist results carry summary, evidence, uncertainty/errors and current owner/session/turn/source versions; results remain data. Establish a versioned synthetic or authorized/sanitized direct baseline.
+
+**Batch gate:** reproducible baseline; fixtures reject unknown roles, malformed results, and permission escalation.
+
+### M10-B — Bounded read-only collaboration
+
+- [ ] Add supervisor, read-only research/calculator/time specialists, and verifier using existing authorized capabilities. Bound delegation/fan-out/depth, iterations, context, time, concurrency, and aggregate reservations; propagate cancellation, reject stale work, account for cancelled calls, and provide direct fallback/controlled failure.
+
+**Batch gate:** one coordinator commits the answer/history and dispatches audio once; interruption, stale sources, specialist failures, and limits cannot cause unauthorized effects or late results. A verifier flags concerns; it cannot establish truth or authority.
+
+### M10-C — Evaluation, private observability, and human approval
+
+- [ ] Compare direct/specialist quality, grounding, language, latency/usage, hostile input, cancellation, timeouts, and quota isolation. Keep bounded sanitized private traces; retained real content needs explicit ownership/retention/removal. Reuse M7 exact approval/reconciliation with the controlled integration.
+
+**Batch gate:** measured regressions justify routing limits; no raw transcript/tool-payload retention or exposed reasoning by default. Specialists cannot self-approve, edit approved payloads, replay approval, or repeat uncertain effects.
+
+### M10-D — Optional verified MCP adapter
+
+- [ ] Only for a concrete existing capability: verify one allowlisted server/transport, authentication, capabilities, schemas/size, secrets, origin/egress, cancellation/timeouts, and private data handling. Start read-only; writes retain exact server approval/reconciliation.
+
+**Optional gate:** valid read-only use succeeds; revoked access, unexpected tools/targets, hostile results, and failures stay bounded. M10-D is optional; no arbitrary marketplace, extra infrastructure, or content store is implied.
+
+**Demo/exit gate:** compare an eligible direct/supervised answer, interrupt a specialist run, inspect private metrics, and show exact approval still required. M10-A–C checks and existing voice/budget/retrieval/action recovery regressions pass; document measured trade-offs and controlled fallback. Verify MCP separately only if enabled.
 
 ## How we deliver and track progress
 
-1. Work on one active milestone and one reviewable batch at a time. For the first implementation session, start with M1-A; no voice cloning, checkout, or video infrastructure is needed for that batch.
-2. Use **Not started → In progress → Verified** for each batch. Mark **Blocked** only with a concrete missing prerequisite and its resolution. Keep blocked provider capabilities separate from usable completed work.
-3. For each batch, implement the working slice, run its relevant checks, document commands/behavior and remaining limits, then prepare it for review. A milestone becomes **Verified** only after its demo and exit gate pass; deployment/release status is recorded separately.
-4. Update this roadmap's status and checkboxes, the README's project status, and affected design/scope documents together. Record verification evidence with the change. Do not tick features because interfaces, mocks, or diagrams exist.
-5. Keep future features planned until their own gates pass. Revisit dates after measuring M1–M3 work; there are no delivery-date commitments yet.
+Work on one milestone/batch at a time: **Not started → In progress → Verified** only after its demonstration and gates pass. Record a concrete prerequisite for **Blocked**, distinguish provider-specific gaps and deployment status, and align README/affected docs with verified behavior. No delivery dates are committed.
 
-This plan preserves every approved phase. The separately labelled [further suggestions](./feature-ideas.md#further-suggestions-not-yet-approved)—conversation search, extra accessibility settings, and a pre-session preview/microphone check—remain outside the approved milestones. Semantic controls and keyboard access remain core requirements. Scaling to multiple replicas is also a measured infrastructure decision, not a prerequisite for this first roadmap; follow the architecture's shared-state gates before adding replicas.
+Add stores/processes only when required: proposed PostgreSQL for durable owned features, private object storage for assets, and separate expiring Redis with no persistence/backups before replicas. Pass shared ownership/fencing, replay/status recovery without reruns, quota, bounded-resource, and authority-loss tests before scaling; see [runtime gates](./scaling.md). [Further suggestions](./feature-ideas.md#further-suggestions-not-yet-approved) remain unapproved; semantic controls and keyboard access are core.

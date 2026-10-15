@@ -1,110 +1,101 @@
 # Runtime, recovery, and scaling design
 
-Status: proposed design for the [full product architecture](./architecture.md#architecture-for-the-full-product). No server, data store, broker, worker pool, or deployment exists yet. This document makes the approved roadmap operational; it adds no new product features or delivery-date commitments.
+Proposed [full-product design](./architecture.md#architecture-for-the-full-product), not installed infrastructure. No server, store, broker, worker pool or deployment exists. Add components only for the active [milestone](./roadmap.md).
 
 ## Deployment stages
 
-| Stage | Add when | Deployment shape | Required gate |
-| --- | --- | --- | --- |
-| Core: M1–M3 | First working assistant | Static React app, one Bun/TypeScript backend, bounded in-memory session state, provider adapters | Text/manual/hands-free flows, cancellation/isolation and measured audio behavior |
-| Accounting: M4 | Account-wide budgets or retained preferences | Stable authenticated owner and PostgreSQL accounting/preferences; temporary history stays in memory | Concurrent reservations, restart recovery and explicit preference retention |
-| Saved features: M5–M6 | Profiles, selected memories, originals/documents/routines | PostgreSQL plus private object storage; indexing entry point as needed | Owner isolation, source/profile revocation, removal and bounded indexing |
-| Scheduling/actions: M7–M8 | Durable reminders and approved commerce | Durable operations/schedules/job claims/outbox; notification and reconciliation processes | Deduplication, unknown results, restart, exact approval and secure input |
-| Rendering: M9 | Requested explanatory videos | Separate bounded render pool and expiring media inputs/results | Narration capacity isolation, private expiry and stale-job cancellation |
-| Voice replicas | Measured single-runtime capacity or availability need | HTTPS edge, multiple voice runtimes, shared temporary Redis and media delivery | Shared ownership/replay tests and provider-wide limits; drain live streams |
+| Stage | Add when | Proposed shape / gate |
+| --- | --- | --- |
+| M1–M3 core | First assistant | Static React, one Bun/TypeScript backend, bounded in-memory sessions; verify text/manual/hands-free behavior and isolation |
+| M4 accounting | Persistent budgets/preferences | Stable authenticated owner and PostgreSQL reservation/usage ledger; verify concurrency/restart and opt-in retention |
+| M5–M6 saved features | Profiles, selected memories, documents/routines | PostgreSQL, private object storage and bounded indexing; verify ownership/revocation/removal |
+| M7–M8 schedules/actions | Reminders and approved commerce | Durable schedules/operations/outbox, notification/reconciliation processes; verify exact approval, deduplication and unknown outcomes |
+| M9 video | Requested rendering | Separate bounded render pool, expiring private inputs/results; protect interactive capacity |
+| M10 learning | After M1–M9 | Reuse coordinator, stores/accounting and provider gates; bounded branches, one final commit, private evals |
+| Replicas | Measured capacity/availability need | HTTPS edge, shared temporary Redis, drained live streams; verify shared fencing/replay and provider-wide limits |
 
-Start in one region near the intended users and providers after measuring routes; hosting remains open. Keep CPU-heavy entry points in separate processes so parsing/rendering cannot block live voice callbacks. Scale those pools independently. A container/managed process deployment is a candidate; choose a host that supports the required long-lived WebSocket/SSE traffic. Kubernetes, service-per-feature decomposition, multi-region active voice state, and another broker are not initial requirements.
+Temporary history/event/ownership stores have no persistence or backups unless retention is explicitly chosen. Durable owned records, accounting and broker metadata stay separate; private objects have retention/expiry/removal policies. Hosting remains open: measure region/provider routes and require long-lived WebSocket/SSE support. Isolate CPU-heavy parsing/rendering in separate processes; Kubernetes, per-feature services, extra brokers and multi-region active voice state are not initial requirements.
 
 ## Interactive turn path
 
-1. Authorize the session, validate format/payload/limits, and atomically admit its turn against the current session generation and ownership fence. Typed input goes directly to the text path. Before opening paid streaming or batch transcription, reserve its conservative estimated allowance and acquire STT capacity; bound recording duration/bytes and reserve any extension before more paid capture. Streaming input holds its STT slot while the provider is active.
-2. Stream admitted audio with packet credits and bounded queues. `end_input` carries the capture epoch and last sequence; validate all required packets, forward them in order through the adapter, then send provider commit on that same ordered stream, using provider acknowledgements when supported. Merely enqueueing packets locally does not satisfy finalization. Bound forwarding stalls and fail discontinuities visibly. Partial transcripts are draft input.
-3. Resolve the finalized language, snapshot current authorized context and preferences, reserve the model/tool-stage estimate or consume its existing turn reservation without double accounting, and acquire its capacity. Read-only retrieval runs with owner/source filters and explicit size/time bounds; expensive initial indexing is a separate job.
-4. Run LangChain against the isolated snapshot. Map tool lifecycle to allowlisted public progress; do not speak intermediate model text. A tool may return an action proposal, while its later approval/execution remains a separate owned operation.
-5. Conditionally commit the finalized answer and replay metadata while ownership/version checks hold. Publish text, then acquire/reserve synthesis capacity and stream audio for that committed answer and validated speech settings. Check current profile authorization before dispatch and during delivery; revocation cancels pending/active use.
-6. Release resources after real completion, preserving committed text on audio failure. New confirmed speech stops local audio immediately and replaces unfinished voice work. Secure login/payment uses the capture-pause barrier; a voice interruption does not erase a submitted external operation.
+1. Authenticate/validate and atomically admit against session generation/owner fence. Typed input goes directly to text; M2/M3 adds audio. Bound audio duration/bytes and reserve extensions before more paid capture.
+2. Forward admitted audio with credits/bounded queues. The [audio contract](./browser-audio.md#audio-and-transport-contract) makes `end_input` an epoch/last-sequence barrier: validate and forward all required packets in order before provider commit. Fail gaps/stalls; partial transcripts stay draft.
+3. Resolve final language and snapshot authorized context/preferences. Acquire stage capacity; retrieval filters owner/source and bounds results, while initial indexing is a job.
+4. Run LangChain on an isolated snapshot with allowlisted public progress. Proposals do not execute external actions; approval/execution has its own owned workflow.
+5. Conditionally commit final answer/replay metadata under current ownership; publish text before synthesis. Apply validated speech settings and current profile authorization; revocation stops pending/active use.
+6. Release after actual completion. Preserve text on audio failure; new speech mutes locally and replaces unfinished work. Secure input uses the capture-pause barrier; interruption preserves submitted external outcomes.
 
-Reserve each paid stage before dispatch; estimates already reserved for a turn cover those stages without double charging. If a stage is refused, report the corresponding usable text/error fallback within remaining allowance. Bounded waiting for interactive admission is allowed; do not place ordinary conversation turns in a durable background queue or retain an unbounded backlog of replacement utterances.
+M1 needs deadlines/concurrency limits, not speech or an account ledger. M4 adds conservative atomic reservations **before every paid stage**, including STT. Reuse existing turn reservations without double accounting. Refusal produces a usable fallback only within remaining allowance. Interactive waits are bounded; ordinary turns never enter a durable background queue.
 
 ## Ownership and recovery
 
-| Identifier/version | Invalidated by | Does not invalidate |
+| Identity/version | Invalidated by | Preserves |
 | --- | --- | --- |
-| Session generation and store incarnation | Reset, turn replacement as required, expired/lost temporary authority | Explicitly saved reminders, assets, operations and budgets |
-| Turn ID and renewable owner fence | Cancellation, replacement, lost/expired lease | A final answer already committed or confirmed external effect |
-| Capture epoch and packet sequence | New capture, secure pause, discontinuity/disposal | An independent render job or saved reminder |
-| Playback-attempt epoch | Stop, new speech, retry, profile revocation/disposal | Canonical committed answer or retained external receipt |
-| Source/profile version | Edit, removal, access revocation | Other authorized sources/profiles |
-| Job ID, generation and lease fence | Explicit cancellation, relevant source change or video reset/disposal, expired job lease | Unrelated new voice turns; worker result always attaches to its original source |
-| Action ID/version and execution attempt | Proposal edit, expiry or rejection before submission; attempt state changes after submission | Verified provider outcome; cancellation/refund needs its own approved operation |
-| Reminder schedule version and occurrence ID | Snooze/edit/cancel and delivery-state transitions | Conversation reset, microphone stop or app closure |
+| Session generation/store incarnation | Reset, replacement as required, expiry/authority loss | Saved records, operations, budgets |
+| Turn ID/renewable owner fence | Cancel, replacement, lease loss | Committed answers/confirmed effects |
+| Capture epoch/sequence | New capture, pause, discontinuity/disposal | Independent jobs/reminders |
+| Playback attempt | Stop, speech, retry, profile revocation/disposal | Canonical answer/receipt |
+| Source/profile version | Edit, removal, revocation | Other authorized sources |
+| Job ID/generation/lease fence | Cancel, source change, applicable reset/disposal, lease loss | Unrelated turns; results attach to original source |
+| Action ID/version/attempt | Proposal edit/expiry/rejection; submission-state transitions | Verified outcome; cancellation/refund is a new authorized action |
+| Schedule version/occurrence ID | Edit/snooze/cancel/delivery transitions | Reset, microphone stop, app closure |
 
-Every write/publication validates its relevant owner and current fence/version. Keep voice, source, job, action and schedule lifecycles independent; one global epoch would either publish stale work or cancel unrelated durable features. Expiry renewals cannot resurrect revoked access.
+Every write/publication checks the relevant owner/fence/version; lease renewal cannot restore revoked access. Controls atomically compare target identity and expected version and deduplicate commands, preventing old cancellation from affecting a successor. Automatic speech requires current-turn authority. Historical replay creates a new authorized attempt against retained committed text/current profile access; the original turn need not remain active.
 
-Control commands atomically compare target identity and expected generation/version before applying cancellation or replacement; deduplicate them so an old command cannot invalidate a successor. Automatic turn speech uses the current turn fence, while explicit replay authorizes a fresh playback attempt against a retained committed answer and current session/profile access. Its original turn need not remain active. Stop playback affects only its attempt, and new speech invalidates foreground playback immediately.
+Before replicas, put history, active ownership, cancellation, deduplication and replay in shared expiring state. Retain minimal deduplication independently of history/event eviction for a server-verifiable retry horizon; reuse the same turn ID for uncertain submissions and reject expired IDs. Explicit retries after terminal failure/cancellation use new IDs; speech retries never rerun the agent/tools.
 
-Shared Redis admission/commit scripts and bounded replay close local process races, but asynchronous replica failover can lose recent ownership data. Fail closed when authority is uncertain; abandon affected old incarnation/session capabilities rather than reconstructing a running turn from client data. Never treat a Redis lease as proof that an external purchase ran exactly once. [Redis documents this failover caveat](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/).
+Redis scripts/fences close local races, but [failover may lose recent ownership](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/). Fail closed on authority uncertainty: invalidate old store incarnations/sessions, reject stale work and never rebuild authority from client data. A lease does not guarantee exactly-once external effects.
 
-Crash after final-answer commit is recovered from authoritative turn status/replay, not by running the model again. A broken live stream ends with a recoverable error; a subsequent turn may use another healthy replica, but live audio is not transparently migrated. Temporary state loss may lose conversation context by design. PostgreSQL recovery is independent: reminders and minimal action/receipt state survive under their stated durable policy.
+Recover crash-after-commit delivery from surviving authoritative status/replay without another model run. Replay expiry alone requires status lookup: recover committed text or observe the same running turn. Initial in-memory restart loses status/history/replay and ends that session. Broken live audio is not transparently migrated; recover visibly. Durable saved features/operations follow their separate retention policy.
 
-The event replay buffer may expire before the retained turn status/history. Query that status to recover a committed answer or observe the same running turn; request a fresh attempt only for a confirmed eligible failure. If the entire session authority has expired or been lost, do not rebuild its history from untrusted client state or repeat operations automatically.
+## M10 bounded multi-agent execution
+
+[M10](./agent-learning.md#m10-bounded-multi-agent-learning) adds bounded asynchronous branches on the direct interactive path, not a new conversation authority or early worker pool. Bind child ID/attempt to parent session/turn/generation/fence and source versions; recheck at admission, join, final commit, events and speech. Cancellation rejects late branches while preserving committed text and independent external effects. Only the coordinator commits/publishes/speaks; supervisor/verifier cannot grant permission or expand limits.
+
+Apply [finite team ceilings](./agent-learning.md#limits-cancellation-and-injection-defenses) across fan-out/depth, context/results, calls, duration and concurrency. Charge all paid supervisor/specialist/verifier/evaluation stages through existing accounting without double reservation; cancelled upstream work remains counted. Reconnect observes the same run; replicas require shared parent/result checks rather than local task maps.
+
+Use minimal child snapshots, existing owner/source deletion rules and no global specialist history. Private expiring traces contain route/version, counts/timings and sanitized outcomes, excluding prompts, raw findings/tool payloads and reasoning. Evals have separate bounded capacity. Optional MCP has explicit capabilities, credential isolation, limits and cleanup.
 
 ## Durable work and background pools
 
-Use PostgreSQL job/operation rows as the initial durable authority. A transaction records an approved owned change and its outbox/dispatch record together. Workers claim a bounded batch in a short transaction, record a lease/fence, then do network/CPU work outside database locks. `FOR UPDATE SKIP LOCKED` is a candidate for queue-table claims, not general consistency; [PostgreSQL documents this use and its limitations](https://www.postgresql.org/docs/current/sql-select.html).
+PostgreSQL is the proposed durable authority. Transactionally record an owned change/approval consumption, operation state and outbox intent before dispatch. Claim bounded batches with lease/fence in short transactions; do network/CPU work outside locks. [`FOR UPDATE SKIP LOCKED`](https://www.postgresql.org/docs/current/sql-select.html) is a queue-claim candidate, not general consistency.
 
-| Pool | Work | Correctness and limits |
-| --- | --- | --- |
-| Indexing | Validate/parse approved uploads, create search data | File/page/CPU/memory limits; owner/source-version checks before publishing; delete/revoke cancels and purges derived data |
-| Rendering | Storyboard validation, narration, captions, assembly | Per-job asset/duration/resolution/concurrency bounds; separate TTS/model allowance; source-answer binding and private expiry |
-| Notifications | Claim due occurrences and call verified channel | Unique schedule/version/occurrence key; expiry and cancellation rechecked just before dispatch; controlled attempts and truthful delivery state |
-| Operation reconciliation | Process callbacks/status lookup and resolve uncertain submitted actions | Provider operation reference, verified callback authenticity, deduplication and bounded backoff; no blind repeat purchase/payment |
-| Dispatch/cleanup | Advance outbox/job records and remove expired/revoked inputs/results | Bounded polling/batches, fencing, sweep expired leases, track incomplete provider cleanup |
+| Pool | Required boundaries |
+| --- | --- |
+| Indexing | File/page/CPU/memory bounds; owner/source checks before publication; revoke/delete purges derived data |
+| Rendering | Asset/duration/resolution/concurrency bounds, separate narration/model allowance, source binding/private expiry |
+| Notifications | Unique schedule/version/occurrence, current cancellation/expiry checks, verified channel and truthful delivery |
+| Reconciliation | Authenticated callbacks/status, durable deduplicated events/provider references, bounded backoff |
+| Dispatch/cleanup | Fenced bounded polling, expired-claim recovery and tracked incomplete provider cleanup |
 
-Delivery is at least once where replay/retries are supported; make consumers idempotent with durable unique keys and conditional updates. Do not promise exactly-once third-party effects. A sweeper recovers expired claims, missed dispatch and terminal cleanup. Callback handlers normalize and validate status, store a deduplicated durable event, and wake reconciliation; they do not run a new conversational turn.
+Use durable unique keys/conditional updates for at-least-once dispatch. Callbacks wake reconciliation, never a new conversation. A sweeper handles missed dispatch and cleanup. Retry reversible jobs only after source/access/version/attempt checks. An expired action lease after possible submission becomes uncertain: retain the original idempotency reference and reconcile before retry; unsupported status/idempotency may require user resolution.
 
-An expired claim for a job with no irreversible effect may be retried after checking source/access/version and attempts. If an action worker may have submitted a purchase, payment or booking, lease expiry moves it to uncertain/reconciling state; another worker cannot blindly submit again. Preserve the recorded idempotency key across valid retry/reconciliation. A provider without idempotency/status support may require explicit user resolution rather than safe automatic retry.
+Reminders use durable schedules/occurrences, not browser timers. Store local schedule, IANA timezone, recurrence/expiry, resolved instant and version; handle daylight-saving ambiguity/overdue policy. Recheck cancel before send. Accepted notifications cannot be recalled by later snooze/cancel; ambiguous sends remain uncertain.
 
-Reminders use durable schedules and unique occurrence rows, not long `setTimeout` calls. Store intended local schedule, IANA timezone, recurrence policy, resolved delivery instant and schedule version; handle daylight-saving ambiguity/overdue policy. Recheck cancellation before send. Once a notification channel has accepted a message, later snooze/cancel cannot recall it. Deduplicate with supported provider keys; an ambiguous send is tracked honestly and reconciled where possible.
-
-Keep queue payloads minimal: owner, feature/job/operation ID, version, deadline, attempt, and private expiring input reference. Expired input is a terminal recoverable failure, not permission to fetch a deleted source. Video narration/source text stays in the expiring job-input class rather than durable outbox payloads. If a broker is later added, use outbox dispatch to bridge the database and broker, acknowledge only after durable state transition, and tolerate duplicate messages. Its persistence/backups must be separate from temporary session Redis.
+Queue only owner/feature/job/operation identifiers, version, deadline, attempt and private expiring input reference. Narration/transcripts stay out of durable payloads; expired inputs fail, never refetch deleted sources. A later broker uses transactional outbox dispatch, acknowledges after durable transition and tolerates duplicates; keep its persistence/backups separate from temporary Redis.
 
 ## Capacity, latency, and overload
 
-Use one admission policy across voice processes and worker pools. Track provider-wide request/token/audio quotas, in-flight connections, rate windows and per-owner budgets, with smaller per-workload ceilings. Reserve interactive capacity; background work waits within its own bounded queue. Adding replicas or render workers does not create additional upstream quota.
+One admission policy covers runtimes/pools, provider-wide rates/connections/tokens/audio and per-owner budgets. Reserve interactive capacity and bound background queues; more replicas cannot create provider quota. Bound browser pools/socket bytes/playback, sessions/turns/context/deadlines, database connections/query time/upload bytes, and job age/depth/attempts/CPU/memory/output. Refuse predictably; approval/accounting fails closed. Reuse bounded clients/pools.
 
-| Resource | What is bounded | Overload behavior |
-| --- | --- | --- |
-| Browser capture/transport/playback | Pool blocks, packet age, credits, socket bytes, buffered audio duration | Fail incomplete input or stop stalled playback; keep typed/manual recovery |
-| Runtime | Active sessions/turns, event-loop work, deadlines, history/context, connection limits | Predictable admission refusal and retry guidance; no unbounded queue |
-| Provider stage | STT/model/TTS connections, tokens/audio, rate, stage timeout | Protect interactive share, controlled retry for safe reads only |
-| Database/object access | Pool size, query time, upload/download bytes, search results | Bounded waits and owner-scoped errors; approval/accounting fails closed |
-| Workers | Queue age/depth, attempts, per-job CPU/memory/time and artifact size | Reject new work predictably or leave it visibly queued within limits |
+Cancellation removes publication rights immediately, not upstream cost/concurrency. Hold slots/reservations until completion or conservative reconciliation, including after crashes. M4's durable PostgreSQL ledger reserves before paid stages and reconciles reported usage; local estimates/limits do not guarantee provider invoices. Redis can accelerate limiting but is not financial authority. Lost limiter state stops new paid admission until current usage/windows are conservatively reconstructed.
 
-Cancellation invalidates publishing rights immediately, but an upstream request may remain running/billable. Do not release its provider slot or reserved estimate on the client cancel event alone. Settle from known completion/usage or a conservative bounded recovery policy; after a process crash, preserve possible charges and uncertain action state. Persistent/account budgets use a durable PostgreSQL reservation/usage ledger when M4 adds them; session-only estimates must be labelled as such. Reserve atomically before paid work, reconcile provider-reported usage when available, and distinguish local estimates from the provider invoice.
-
-Use PostgreSQL unique/conditional records for hard local admission/reservation limits and exact action approval consumption; these do not guarantee the provider's final charges. Bound paid stages and reserve conservatively. Redis may accelerate provider rate/concurrency coordination but is not the sole financial authority. Lost limiter state must not replenish an unrestricted quota: stop new paid admission until the controller can conservatively rebuild the current window/leases. Clients reuse bounded provider/database connections; avoid one new client/pool per turn.
-
-Measure speech-end → 3-second seal → final STT → final commit → first audible audio, plus local interrupt-to-mute, stage admission wait, safe cancellation completion, p50/p95 latency and error rate. Also track event-loop lag, buffer peaks/underruns, provider saturation/rate limits, queue age, job retry/unknown-operation counts, reminder lag and database pool wait. Use monotonic local durations and correlate distributed spans by identifiers; never subtract unsynchronized clocks. Define service objectives only after M1–M3 baselines and realistic concurrency measurements.
-
-Scale voice replicas by measured active connections/turns, stage waits, event-loop lag and latency headroom. Scale workers by oldest runnable job age and processing capacity within remaining quota. Cap all replicas/pools by database/provider limits; use gradual scale-down and stream draining. Do not scale a provider bottleneck by adding more callers. Avoid aggressive retries that amplify an outage; protect providers independently so failed synthesis leaves finalized text usable.
+Measure speech-end/seal/STT/commit/first-audio stages, interrupt-to-mute, admission wait, p50/p95/error rate, event-loop lag, buffer peaks/underruns, provider saturation, queue age, uncertain operations, reminder lag and database wait. Use local monotonic durations and correlated IDs, not unsynchronized clock subtraction. Set targets from M1–M3/concurrency measurements. Scale within provider/database ceilings using connection/latency headroom or runnable-job age, drain streams on scale-down and avoid outage-amplifying retries.
 
 ## Private access, caching, and deletion
 
-All saved records/queries carry an authorized owner; derive ownership on the server. Keep per-source versions and deletion tombstones so late indexing or restored data cannot republish removed items. Put private object references behind owner checks, validate uploads, and bound parser capabilities. Asset URLs expire; short-lived signed URLs may remain usable until expiry, so immediate revocation requires an authorization proxy/current version check. Expiry/access removal is distinct from physical deletion and backup/provider cleanup.
+Derive owners server-side; filter every saved query. Source versions/tombstones prevent late or restored publication. Validate/bound uploads/parsers; authorize private objects. Expiring signed URLs may remain usable until expiry: immediate revocation needs a current-access proxy/check. Distinguish expiry/access removal from physical, backup and provider deletion.
 
-Cache static UI and immutable public assets at the CDN. Keep private model responses, tool output, retrieval and TTS out of shared public caches. Any approved private cache key includes owner/access scope, source/profile version, language/model/settings and expiry; recheck authorization on delivery and evict on removal. Replay is session-authorized retained audio or synthesis of committed text, not another agent run. Do not cache changing shopping prices/seat availability as current quotes; use provider freshness/expiry and revalidate before approval/execution.
+Public caches contain static UI/immutable public assets only. Any approved private cache keys include owner/scope, source/profile version, language/model/settings and expiry, with delivery reauthorization/removal eviction. Replay reuses retained committed text/audio, not the agent. Quotes require provider freshness/expiry and revalidation.
 
-Operational telemetry records identifiers, counts, timings and sanitized failure classes. Disable raw payload capture in access logs, tracing, exception reporting and worker dead-letter records; observability must not become a durable conversation archive. Do not use per-session/turn IDs as unbounded metric labels. Saved-feature backups need documented retention/restore policies and deletion reconciliation; provider clone/media cleanup may fail and must remain visible.
+Telemetry contains identifiers/counts/timings/sanitized errors, not raw audio, transcripts, tool payloads or private dead-letter content. Avoid unbounded session/turn metric labels. Document durable backup retention/deletion reconciliation; incomplete provider cleanup remains visible.
 
 ## Rollout and verification gates
 
-- Core: strict typing/builds, full mocked flow, configured real microphone/playback, Urdu/mixed-language support, noise/echo, silence and cancellation races, resource cleanup and streaming/native profiling.
-- Durable features: cross-owner tests, concurrent budget reservations, source/profile revocation during work, derived-data deletion, account/operation restart recovery and expiring job inputs.
-- Jobs: duplicate dispatch, expired leases, process crash after claim/result, bounded retries/queue age, dead-letter privacy, source deletion during indexing/rendering and separate provider capacity under render load.
-- Actions/scheduling: duplicate/edited/expired approvals, crash before/after provider submission, unknown outcomes/callback ordering, reminder restart/timezone/snooze/cancel races and truthful delivery/receipt states.
-- Replicas: concurrent-session isolation, stale-owner/fence rejection, state-loss/failover handling, reconnect without reruns, final-commit/publication crash gap, slow clients, quota enforcement across pools and graceful rolling deployment.
+- **Core:** typing/builds, authenticated routes, temporary isolation, final commit, targeted cancellation/reset, bounded deduplication/status/replay, controlled failures and no browser secrets. M2 adds mocked then real configured microphone/STT/TTS/Urdu checks; M3 adds silence/interruption, noise/echo, language/delivery, continuity and native/streaming profiling.
+- **Durable features/jobs:** cross-owner access, concurrent reservations, source/profile revocation/deletion, restart, expired inputs/leases, duplicate dispatch, crash after claim/result, bounded queues/retries and private dead letters.
+- **Actions/schedules:** edited/expired/duplicate approval, crash around submission, unknown outcomes/callback order, reminder timezone/restart/snooze/cancel races and truthful receipts/delivery.
+- **Replicas:** stale fences, state loss/failover, reconnect without reruns, commit/publication crash gap, slow clients, shared quota and graceful draining.
+- **M10:** finite branch/cost limits, parent/source isolation, malformed/injected results, verifier non-authority, cancellation/duplicate joins, one final answer/audio, trace privacy and measured baseline comparison; optional MCP gates remain separate.
 
-Feature deployment uses capability flags and compatible shared-contract versions. Roll out to a small test cohort, observe stage/queue metrics, and expand only after gates pass. Database migrations remain compatible with active runtimes/workers during draining. Back up only the data classes approved for durable retention; restoration exercises must include operation reconciliation, reminder deduplication and deletion tombstones. Record measured limits and evidence with the implementation milestone; this design alone does not establish capacity or latency guarantees.
-
-After restoring durable data, suspend external dispatch and notification retries until restored ownership, versions, post-snapshot deletions and possible external effects have been reconciled. A backup may contain an approval or due occurrence whose effect already happened later. Invalidate stale approvals, retain original operation/idempotency references, and resolve unknown effects through verified status or explicit user resolution. Restored schedules resume under a reviewed overdue policy; unresolved operations/occurrences remain blocked from automatic repetition. Restored deleted assets remain unavailable until current authorization/deletion checks pass.
+Use capability flags, compatible contracts/migrations and a small observed rollout. Back up only approved durable data. **After restoration, suspend external dispatch/notification retries** until ownership, versions, post-snapshot deletions and possible prior effects are reconciled. Invalidate stale approvals, retain operation/idempotency references, resolve unknown effects, and resume schedules only under a reviewed overdue policy. Unresolved operations/occurrences cannot repeat automatically; restored deleted assets remain unavailable. This design establishes no measured capacity guarantee.

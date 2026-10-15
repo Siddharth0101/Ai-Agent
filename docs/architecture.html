@@ -1068,6 +1068,21 @@ html&gt;body{padding:0}&lt;/style&gt;
     #voice-agent-architecture .module-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     #voice-agent-architecture .workload-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
     #voice-agent-architecture .architecture-note { margin: 12px 0 0; color: var(--muted-foreground); line-height: 1.5; }
+    #voice-agent-architecture [role=&quot;tablist&quot;] { flex-wrap: wrap; gap: 8px; }
+    #voice-agent-architecture [role=&quot;tab&quot;] { min-height: 44px; padding: 8px 12px; white-space: normal; }
+    #voice-agent-architecture :is([role=&quot;tab&quot;], [data-node]):focus-visible { outline: 3px solid color-mix(in srgb, var(--foreground) 75%, var(--background) 25%); outline-offset: 3px; }
+    #voice-agent-architecture .learning-panel { --learning-muted: color-mix(in srgb, var(--foreground) 75%, var(--background) 25%); }
+    #voice-agent-architecture .learning-panel :is(.text-muted, .architecture-note, .vertical-link) { color: var(--learning-muted); }
+    #voice-agent-architecture .learning-panel [data-node] { min-height: 44px; padding: 10px 12px; color: var(--foreground); background: var(--secondary); border-color: color-mix(in srgb, var(--foreground) 55%, var(--background) 45%); }
+    #voice-agent-architecture .learning-panel [data-node][aria-pressed=&quot;true&quot;] { border: 2px solid var(--foreground); color: var(--foreground); background: var(--card); font-weight: 600; }
+    #voice-agent-architecture .learning-intro { padding: 16px; border-radius: 14px; background: var(--card); }
+    #voice-agent-architecture .learning-intro h4 { margin: 6px 0; }
+    #voice-agent-architecture .learning-specialists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    #voice-agent-architecture .learning-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    #voice-agent-architecture .learning-table :is(th, td) { padding: 10px; text-align: start; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+    #voice-agent-architecture .learning-table th { font-weight: 600; }
+    #voice-agent-architecture .learning-table caption { text-align: start; font-weight: 600; margin-bottom: 8px; }
+    #voice-agent-architecture .learning-batches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     #voice-agent-architecture [role=&quot;tabpanel&quot;][hidden] { display: none; }
     @media (max-width: 540px) {
       #voice-agent-architecture .pipeline { grid-template-columns: minmax(0, 1fr); gap: 7px; }
@@ -1079,6 +1094,8 @@ html&gt;body{padding:0}&lt;/style&gt;
       #voice-agent-architecture .thread-grid { grid-template-columns: minmax(0, 1fr); }
       #voice-agent-architecture .system-lanes, #voice-agent-architecture .module-grid { grid-template-columns: minmax(0, 1fr); }
       #voice-agent-architecture .workload-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #voice-agent-architecture .learning-specialists, #voice-agent-architecture .learning-batches { grid-template-columns: minmax(0, 1fr); }
+      #voice-agent-architecture .learning-table :is(th, td) { padding: 8px 6px; }
     }
   &lt;/style&gt;
 
@@ -1092,6 +1109,7 @@ html&gt;body{padding:0}&lt;/style&gt;
     &lt;button type=&quot;button&quot; class=&quot;nav-link&quot; role=&quot;tab&quot; id=&quot;vaa-flow-tab&quot; aria-controls=&quot;vaa-flow&quot; aria-selected=&quot;false&quot; tabindex=&quot;-1&quot; data-default=&quot;coordinator&quot;&gt;Manual baseline&lt;/button&gt;
     &lt;button type=&quot;button&quot; class=&quot;nav-link&quot; role=&quot;tab&quot; id=&quot;vaa-scale-tab&quot; aria-controls=&quot;vaa-scale&quot; aria-selected=&quot;false&quot; tabindex=&quot;-1&quot; data-default=&quot;shared&quot;&gt;Scale up&lt;/button&gt;
     &lt;button type=&quot;button&quot; class=&quot;nav-link&quot; role=&quot;tab&quot; id=&quot;vaa-react-tab&quot; aria-controls=&quot;vaa-react&quot; aria-selected=&quot;false&quot; tabindex=&quot;-1&quot; data-default=&quot;hooks&quot;&gt;React structure&lt;/button&gt;
+    &lt;button type=&quot;button&quot; class=&quot;nav-link&quot; role=&quot;tab&quot; id=&quot;vaa-learning-tab&quot; aria-controls=&quot;vaa-learning&quot; aria-selected=&quot;false&quot; tabindex=&quot;-1&quot; data-default=&quot;supervisor&quot;&gt;Multi-agent learning&lt;/button&gt;
   &lt;/div&gt;
 
   &lt;div id=&quot;vaa-system&quot; class=&quot;diagram&quot; role=&quot;tabpanel&quot; aria-labelledby=&quot;vaa-system-tab&quot;&gt;
@@ -1338,6 +1356,87 @@ html&gt;body{padding:0}&lt;/style&gt;
     &lt;/div&gt;
   &lt;/div&gt;
 
+  &lt;div id=&quot;vaa-learning&quot; class=&quot;diagram learning-panel&quot; role=&quot;tabpanel&quot; aria-labelledby=&quot;vaa-learning-tab&quot; hidden&gt;
+    &lt;div class=&quot;learning-intro&quot;&gt;
+      &lt;div class=&quot;lane-label text-small&quot;&gt;M10 · BOUNDED MULTI-AGENT LEARNING · planned after M1–M9&lt;/div&gt;
+      &lt;h4&gt;Specialists collaborate; the app publishes one answer&lt;/h4&gt;
+      &lt;p&gt;Learn routing, structured messages, context isolation, permissions and evaluations after the single-agent voice flow is verified. Simple questions keep the direct path; collaboration is opt-in and bounded.&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;section-gap&quot;&gt;
+      &lt;div class=&quot;lane-label text-small&quot;&gt;PARENT TURN · same application authority as the core assistant&lt;/div&gt;
+      &lt;div class=&quot;full-node stage&quot;&gt;
+        &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;collaborationowner&quot; aria-pressed=&quot;false&quot;&gt;App turn coordinator&lt;/button&gt;
+        &lt;div class=&quot;caption text-small text-muted&quot;&gt;Session + turn + fence · admission · allowed scope · parent budget&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;vertical-link text-small&quot;&gt;&lt;span aria-hidden=&quot;true&quot;&gt;↓&lt;/span&gt;&lt;span&gt;Finalized text + minimal authorized context&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=&quot;full-node stage&quot;&gt;
+        &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;supervisor&quot; aria-pressed=&quot;true&quot;&gt;Router + supervisor&lt;/button&gt;
+        &lt;div class=&quot;caption text-small text-muted&quot;&gt;Direct answer or finite specialist allowlist · child-run IDs · bounded plan&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;vertical-link text-small&quot;&gt;&lt;span aria-hidden=&quot;true&quot;&gt;↓&lt;/span&gt;&lt;span&gt;Independent subtasks may run in parallel within shared limits&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=&quot;learning-specialists&quot;&gt;
+        &lt;div class=&quot;stage&quot;&gt;
+          &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;researcher&quot; aria-pressed=&quot;false&quot;&gt;Read-only researcher&lt;/button&gt;
+          &lt;div class=&quot;caption text-small text-muted&quot;&gt;Verified sources or authorized existing retrieval · citations · no write permission&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class=&quot;stage&quot;&gt;
+          &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;toolspecialist&quot; aria-pressed=&quot;false&quot;&gt;Calculator / time specialist&lt;/button&gt;
+          &lt;div class=&quot;caption text-small text-muted&quot;&gt;Registered safe tools · validated arguments/results · controlled errors&lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;vertical-link text-small&quot;&gt;&lt;span aria-hidden=&quot;true&quot;&gt;↓&lt;/span&gt;&lt;span&gt;Validated structured results, not raw model streams&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=&quot;full-node stage&quot;&gt;
+        &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;collaborationdraft&quot; aria-pressed=&quot;false&quot;&gt;Supervisor assembles a candidate answer&lt;/button&gt;
+        &lt;div class=&quot;caption text-small text-muted&quot;&gt;Evidence + uncertainty + bounded summary · still uncommitted&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;vertical-link text-small&quot;&gt;&lt;span aria-hidden=&quot;true&quot;&gt;↓&lt;/span&gt;&lt;span&gt;Check evidence, schema and arithmetic&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=&quot;full-node stage&quot;&gt;
+        &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;verifier&quot; aria-pressed=&quot;false&quot;&gt;Verifier&lt;/button&gt;
+        &lt;div class=&quot;caption text-small text-muted&quot;&gt;Flags unsupported claims · cannot grant permissions or approve actions&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;vertical-link text-small&quot;&gt;&lt;span aria-hidden=&quot;true&quot;&gt;↓&lt;/span&gt;&lt;span&gt;Current parent owner + final-answer checks&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=&quot;full-node stage&quot;&gt;
+        &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;collaborationcommit&quot; aria-pressed=&quot;false&quot;&gt;App-owned final commit → text → authorized TTS&lt;/button&gt;
+        &lt;div class=&quot;caption text-small text-muted&quot;&gt;One history commit and public answer · no child publication or speculative speech&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;section-gap&quot;&gt;
+      &lt;div class=&quot;lane-label text-small&quot;&gt;GATES APPLY TO EVERY CHILD RUN&lt;/div&gt;
+      &lt;div class=&quot;peer-grid&quot;&gt;
+        &lt;div class=&quot;stage&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;collaborationpermissions&quot; aria-pressed=&quot;false&quot;&gt;Least privilege + exact action approval&lt;/button&gt;&lt;div class=&quot;caption text-small text-muted&quot;&gt;History slices · owner/source checks · existing server action workflow&lt;/div&gt;&lt;/div&gt;
+        &lt;div class=&quot;stage&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;collaborationlimits&quot; aria-pressed=&quot;false&quot;&gt;Shared budgets + capacity&lt;/button&gt;&lt;div class=&quot;caption text-small text-muted&quot;&gt;Fan-out · depth · tokens · time · cost · provider concurrency&lt;/div&gt;&lt;/div&gt;
+        &lt;div class=&quot;stage&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;collaborationcancel&quot; aria-pressed=&quot;false&quot;&gt;Cancellation + stale-result rejection&lt;/button&gt;&lt;div class=&quot;caption text-small text-muted&quot;&gt;Parent turn fence + child-run identity · stop all outstanding work&lt;/div&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;section-gap&quot;&gt;
+      &lt;table class=&quot;learning-table&quot;&gt;
+        &lt;caption&gt;Choose the simplest approach that meets the measured task&lt;/caption&gt;
+        &lt;thead&gt;&lt;tr&gt;&lt;th scope=&quot;col&quot;&gt;Comparison&lt;/th&gt;&lt;th scope=&quot;col&quot;&gt;Single agent · initial default&lt;/th&gt;&lt;th scope=&quot;col&quot;&gt;Bounded multi-agent · M10&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+        &lt;tbody&gt;
+          &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Good fit&lt;/th&gt;&lt;td&gt;A concise question or one calculator/time call.&lt;/td&gt;&lt;td&gt;A task with separable research, computation and evidence checks.&lt;/td&gt;&lt;/tr&gt;
+          &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Execution&lt;/th&gt;&lt;td&gt;One LangChain agent with explicit tools.&lt;/td&gt;&lt;td&gt;A supervisor plus selected specialists returning structured results.&lt;/td&gt;&lt;/tr&gt;
+          &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Tradeoff&lt;/th&gt;&lt;td&gt;Fewer calls and simpler recovery.&lt;/td&gt;&lt;td&gt;More calls, cost and coordination; justify them against the same baseline.&lt;/td&gt;&lt;/tr&gt;
+          &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;Authority&lt;/th&gt;&lt;td colspan=&quot;2&quot;&gt;The app owns permission checks, action approval, cancellation and one final commit. Agent opinions do not replace server policy.&lt;/td&gt;&lt;/tr&gt;
+          &lt;tr&gt;&lt;th scope=&quot;row&quot;&gt;State&lt;/th&gt;&lt;td&gt;Session/turn/generation ownership.&lt;/td&gt;&lt;td&gt;The same parent authority plus child-run IDs and bounded context slices.&lt;/td&gt;&lt;/tr&gt;
+        &lt;/tbody&gt;
+      &lt;/table&gt;
+      &lt;div class=&quot;full-node stage section-gap&quot;&gt;
+        &lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;rolesruntime&quot; aria-pressed=&quot;false&quot;&gt;Agent roles, replicas and workers are separate concepts&lt;/button&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;architecture-note text-small&quot;&gt;Roles divide reasoning responsibilities. Replicas add runtime capacity; browser workers and background pools execute bounded technical work. Adding a replica or AudioWorklet does not create a specialist agent, and adding specialists does not require extra stores or replicas.&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;section-gap&quot;&gt;
+      &lt;div class=&quot;lane-label text-small&quot;&gt;LEARNING PATH · finish the existing M1–M9 gates first&lt;/div&gt;
+      &lt;div class=&quot;learning-batches&quot;&gt;
+        &lt;div class=&quot;stage&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;learninga&quot; aria-pressed=&quot;false&quot;&gt;M10-A · routing + contracts + baseline&lt;/button&gt;&lt;div class=&quot;caption text-small text-muted&quot;&gt;Structured output · context isolation · reproducible single-agent evaluation&lt;/div&gt;&lt;/div&gt;
+        &lt;div class=&quot;stage&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;learningb&quot; aria-pressed=&quot;false&quot;&gt;M10-B · bounded specialist collaboration&lt;/button&gt;&lt;div class=&quot;caption text-small text-muted&quot;&gt;Supervisor · researcher · tool specialist · verifier&lt;/div&gt;&lt;/div&gt;
+        &lt;div class=&quot;stage&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;learningc&quot; aria-pressed=&quot;false&quot;&gt;M10-C · evaluation + regression gates&lt;/button&gt;&lt;div class=&quot;caption text-small text-muted&quot;&gt;Quality / latency / cost · private traces · approval and failure tests&lt;/div&gt;&lt;/div&gt;
+        &lt;div class=&quot;stage&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-block&quot; data-node=&quot;learningd&quot; aria-pressed=&quot;false&quot;&gt;M10-D · optional verified MCP adapter&lt;/button&gt;&lt;div class=&quot;caption text-small text-muted&quot;&gt;Current supported transport · scoped tools · explicit permissions&lt;/div&gt;&lt;/div&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;architecture-note text-small&quot;&gt;M10 is planned, not implemented. MCP is an optional tool protocol, not a model, permission grant or prerequisite for M10&#x27;s core exit gate. Any verified external write still follows the existing exact human-approval and operation-recovery workflow.&lt;/p&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
   &lt;div class=&quot;selection card&quot; role=&quot;status&quot; aria-live=&quot;polite&quot; aria-atomic=&quot;true&quot;&gt;
     &lt;p id=&quot;vaa-selection&quot;&gt;API + policy · Validate ownership, inputs, budgets and capacity before routing work; keep provider credentials and privileged operations on the server.&lt;/p&gt;
   &lt;/div&gt;
@@ -1396,7 +1495,22 @@ html&gt;body{padding:0}&lt;/style&gt;
         molecules: &#x27;Molecules · Combine primitives into a focused control or message; receive typed data and callbacks.&#x27;,
         atoms: &#x27;Atoms · Reusable accessible primitives; no dependencies on higher component levels or backend SDKs.&#x27;,
         hooks: &#x27;Feature hooks · Own microphone cleanup, playback, event handling, active-turn state, and text fallback.&#x27;,
-        contracts: &#x27;Shared contracts · Validate browser/server boundaries without importing server code or credentials.&#x27;
+        contracts: &#x27;Shared contracts · Validate browser/server boundaries without importing server code or credentials.&#x27;,
+        collaborationowner: &#x27;Parent authority · The app turn coordinator admits the parent request and alone owns final history commit, public answer, events and speech dispatch. Every child is bound to the current session/turn/generation/fence and a distinct child-run ID; specialists do not become new session owners.&#x27;,
+        supervisor: &#x27;Router + supervisor · Prefer the existing single-agent path for simple questions. For suitable tasks, choose from a finite specialist allowlist, pass minimal authorized context, bound fan-out/depth and aggregate typed results. Model routing cannot expand server permissions, allocate unlimited budget or publish an answer.&#x27;,
+        researcher: &#x27;Read-only researcher · Retrieve only permitted current sources: verified public sources or already-authorized owner-filtered retrieval. Return bounded evidence with citations/provenance and uncertainty. Source text and other agent messages are untrusted data; they cannot grant tools, reveal broader history or survive source revocation.&#x27;,
+        toolspecialist: &#x27;Tool executor specialist · Invoke only registered calculator/time or other explicitly allowed safe tools through runtime-validated schemas. Check finite arithmetic and timezone output, bound result size and propagate cancellation. A specialist does not approve writes; authorized external actions stay in the existing server action workflow.&#x27;,
+        collaborationdraft: &#x27;Candidate answer · The supervisor combines structured child results and records evidence gaps without exposing raw tool payloads or private reasoning. This draft is not authoritative history and cannot start TTS. Any revision or fallback remains inside the original bounded parent run.&#x27;,
+        verifier: &#x27;Verifier · Check the candidate against cited evidence, schemas and deterministic calculator results; flag unsupported claims or conflicts. Verification is fallible and bounded. It cannot grant permissions, consume approval, independently retry actions or replace the app coordinator as the final authority.&#x27;,
+        collaborationcommit: &#x27;One final answer · After validated child results, verification and current-owner checks, the app conditionally commits one final answer, then publishes its text and dispatches authorized speech. A cancelled/stale child cannot update history, emit current content or start audio. Existing stop/replay/profile rules still apply.&#x27;,
+        collaborationpermissions: &#x27;Permission boundary · Give each role only the tools, owner-filtered sources and history slice needed for its subtask. Agents and retrieved messages cannot change system policy. Exact reviewed action/version/payload approval, idempotency and reconciliation remain server-enforced; a supervisor or verifier approval is not user approval.&#x27;,
+        collaborationlimits: &#x27;Shared bounds · Enforce parent and child deadlines, fan-out, depth, tool iterations, token/result limits, estimated cost reservations and provider concurrency. Child runs share the same quota pool and cannot reset allowance by delegation. Keep cancelled upstream work accounted for until settled or conservatively reconciled.&#x27;,
+        collaborationcancel: &#x27;Parent cancellation · Cancelling/resetting/replacing the parent invalidates all child runs with its turn fence and generation. Abort providers where supported, drop stale results/progress and preserve already committed answers. Compare control target/version atomically so delayed old cancellation cannot affect a successor.&#x27;,
+        rolesruntime: &#x27;Different axes · Agent roles divide reasoning or tool responsibilities. Replicas are runtime instances for capacity/availability; browser workers and background pools handle bounded technical work. A multi-agent team may run in one backend process; shared stores are introduced only by existing milestone/scaling requirements.&#x27;,
+        learninga: &#x27;M10-A · Learn structured output, deterministic routing, history/context isolation and typed parent/child contracts. Define allowed tasks and reproducible quality/latency/cost evaluations against the existing single-agent baseline before adding specialists.&#x27;,
+        learningb: &#x27;M10-B · Build an opt-in bounded supervisor with read-only researcher, calculator/time specialist and verifier. Validate role-specific schemas and least privilege; retain app-owned parent admission, cancellation, budget and final-commit rules. Simple tasks continue on the direct path.&#x27;,
+        learningc: &#x27;M10-C · Compare single versus multi on the same dataset, including unsupported evidence, bad arithmetic, injected source instructions, lost authority, overload, cancellation and late child results. Use private sanitized traces with explicit retention; verify exact human approval/action boundaries and release only a measured useful slice.&#x27;,
+        learningd: &#x27;M10-D · Optionally add one supported MCP adapter after checking current server/client SDK, transport, authentication/origin rules and tool schemas. MCP exposes tools/context; it does not supply a model or bypass authorization. This optional integration is not required for M10-A–C completion.&#x27;
       };
       function selectNode(key, panel) {
         if (!details[key]) return;
